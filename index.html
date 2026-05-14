@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Work Kanban Board</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --accent: #6366f1;
+    --accent2: #818cf8;
+    --danger: #ef4444;
+    --success: #10b981;
+    --warn: #f59e0b;
+    --radius: 10px;
+    --shadow: 0 4px 24px rgba(0,0,0,.45);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+  /* ── Header ── */
+  header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+  header h1 { font-size: 18px; font-weight: 700; letter-spacing: .02em; }
+  header h1 span { color: var(--accent2); }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .15s; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); background: var(--surface2); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { opacity: .85; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .save-pill { font-size: 11px; color: var(--success); background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.3); border-radius: 20px; padding: 4px 10px; }
+
+  /* ── Board ── */
+  .board { display: flex; gap: 18px; padding: 20px 24px; min-height: calc(100vh - 65px); align-items: flex-start; overflow-x: auto; }
+  .column { flex: 1; min-width: 280px; max-width: 380px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); display: flex; flex-direction: column; }
+  .col-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; border-bottom: 1px solid var(--border); }
+  .col-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .col-title .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .intake-dot { background: var(--muted); }
+  .progress-dot { background: var(--accent2); }
+  .done-dot { background: var(--success); }
+  .col-count { font-size: 11px; color: var(--muted); background: var(--surface2); border-radius: 20px; padding: 2px 8px; }
+  .card-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+  .card-list.drag-over { background: rgba(99,102,241,.08); border-radius: 6px; }
+
+  /* ── Card ── */
+  .card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 11px 13px; cursor: grab; user-select: none; transition: box-shadow .15s, transform .12s; position: relative; }
+  .card:hover { box-shadow: var(--shadow); border-color: #3d4466; }
+  .card.dragging { opacity: .45; transform: rotate(1.5deg); cursor: grabbing; }
+  .card.drag-target { border: 2px dashed var(--accent); }
+  .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+  .card-title { font-size: 14px; font-weight: 600; line-height: 1.4; flex: 1; }
+  .card-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; flex-shrink: 0; }
+  .card:hover .card-actions { opacity: 1; }
+  .icon-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 5px; color: var(--muted); cursor: pointer; font-size: 13px; padding: 3px 6px; line-height: 1; transition: all .1s; }
+  .icon-btn:hover { color: var(--text); border-color: var(--muted); }
+  .icon-btn.del:hover { color: var(--danger); border-color: var(--danger); }
+  .card-note { font-size: 12px; color: var(--muted); margin-bottom: 8px; line-height: 1.4; }
+  .card-meta { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .tag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; color: #fff; white-space: nowrap; }
+  .urgent-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: rgba(239,68,68,.18); color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+  .owners-badge { font-size: 10px; color: var(--muted); }
+
+  /* ── Add task ── */
+  .add-task-btn { display: flex; align-items: center; gap: 6px; padding: 10px 14px; color: var(--muted); font-size: 13px; background: none; border: none; cursor: pointer; width: 100%; border-top: 1px solid var(--border); transition: color .15s, background .15s; border-radius: 0 0 var(--radius) var(--radius); }
+  .add-task-btn:hover { color: var(--text); background: var(--surface2); }
+  .add-inline { padding: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 7px; }
+  .add-inline input, .add-inline select { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 7px 10px; font-size: 13px; width: 100%; outline: none; }
+  .add-inline input:focus, .add-inline select:focus { border-color: var(--accent); }
+  .add-inline-actions { display: flex; gap: 6px; }
+
+  /* ── Modal overlay ── */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+  .overlay.hidden { display: none; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow); }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 14px; border-bottom: 1px solid var(--border); }
+  .modal-header h2 { font-size: 16px; font-weight: 700; }
+  .modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: 5px; }
+  input[type=text], input[type=date], input[type=time], textarea, select { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 9px 11px; font-size: 13px; width: 100%; outline: none; font-family: inherit; }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 70px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .checkbox-row input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  .checkbox-row span { font-size: 13px; }
+
+  /* ── Category manager ── */
+  .cat-list { display: flex; flex-direction: column; gap: 7px; }
+  .cat-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg); border-radius: 7px; border: 1px solid var(--border); }
+  .cat-swatch { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; cursor: pointer; border: 2px solid rgba(255,255,255,.15); transition: transform .1s; }
+  .cat-swatch:hover { transform: scale(1.15); }
+  .cat-name-input { flex: 1; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--text); font-size: 13px; outline: none; padding: 2px 4px; }
+  .cat-name-input:focus { border-bottom-color: var(--accent); }
+  .color-picker-row { display: flex; flex-wrap: wrap; gap: 7px; padding: 8px 0; }
+  .cpick { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all .1s; }
+  .cpick:hover, .cpick.selected { border-color: #fff; transform: scale(1.1); }
+
+  /* ── Schedule modal ── */
+  .schedule-info { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 12px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .outlook-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; background: #0078d4; color: #fff; border-radius: 7px; text-decoration: none; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: opacity .15s; }
+  .outlook-btn:hover { opacity: .88; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+  /* ── Toast ── */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; font-size: 13px; color: var(--text); box-shadow: var(--shadow); z-index: 999; transform: translateY(80px); opacity: 0; transition: all .25s; pointer-events: none; }
+  #toast.show { transform: translateY(0); opacity: 1; }
+
+  /* ── Responsive ── */
+  @media (max-width: 720px) { .board { flex-direction: column; } .column { max-width: 100%; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🗂 Work <span>Kanban</span></h1>
+  <div class="header-actions">
+    <span class="save-pill" id="save-indicator" style="display:none">✓ Saved</span>
+    <button class="btn btn-ghost btn-sm" onclick="openCatModal()">⚙ Categories</button>
+    <button class="btn btn-ghost btn-sm" onclick="openScheduleModal()">📅 Schedule</button>
+  </div>
+</header>
+
+<div class="board" id="board">
+  <div class="column" id="col-intake" ondragover="onDragOver(event,'intake')" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'intake')">
+    <div class="col-header">
+      <div class="col-title"><span class="dot intake-dot"></span>Intake</div>
+      <span class="col-count" id="count-intake">0</span>
+    </div>
+    <div class="card-list" id="cards-intake"></div>
+    <div id="add-inline-intake" class="add-inline" style="display:none">
+      <input type="text" id="add-title-intake" placeholder="Task title..." />
+      <select id="add-cat-intake"></select>
+      <div class="add-inline-actions">
+        <button class="btn btn-primary btn-sm" onclick="confirmAddTask('intake')">Add</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeAddInline('intake')">Cancel</button>
+      </div>
+    </div>
+    <button class="add-task-btn" id="add-btn-intake" onclick="openAddInline('intake')">＋ Add task</button>
+  </div>
+
+  <div class="column" id="col-progress" ondragover="onDragOver(event,'progress')" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'progress')">
+    <div class="col-header">
+      <div class="col-title"><span class="dot progress-dot"></span>In Progress</div>
+      <span class="col-count" id="count-progress">0</span>
+    </div>
+    <div class="card-list" id="cards-progress"></div>
+    <div id="add-inline-progress" class="add-inline" style="display:none">
+      <input type="text" id="add-title-progress" placeholder="Task title..." />
+      <select id="add-cat-progress"></select>
+      <div class="add-inline-actions">
+        <button class="btn btn-primary btn-sm" onclick="confirmAddTask('progress')">Add</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeAddInline('progress')">Cancel</button>
+      </div>
+    </div>
+    <button class="add-task-btn" id="add-btn-progress" onclick="openAddInline('progress')">＋ Add task</button>
+  </div>
+
+  <div class="column" id="col-done" ondragover="onDragOver(event,'done')" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'done')">
+    <div class="col-header">
+      <div class="col-title"><span class="dot done-dot"></span>Completed</div>
+      <span class="col-count" id="count-done">0</span>
+    </div>
+    <div class="card-list" id="cards-done"></div>
+    <div id="add-inline-done" class="add-inline" style="display:none">
+      <input type="text" id="add-title-done" placeholder="Task title..." />
+      <select id="add-cat-done"></select>
+      <div class="add-inline-actions">
+        <button class="btn btn-primary btn-sm" onclick="confirmAddTask('done')">Add</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeAddInline('done')">Cancel</button>
+      </div>
+    </div>
+    <button class="add-task-btn" id="add-btn-done" onclick="openAddInline('done')">＋ Add task</button>
+  </div>
+</div>
+
+<!-- Edit Task Modal -->
+<div class="overlay hidden" id="edit-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Task</h2>
+      <button class="icon-btn" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <label>Title</label>
+        <input type="text" id="e-title" placeholder="Task title..." />
+      </div>
+      <div>
+        <label>Note</label>
+        <textarea id="e-note" placeholder="Details, context, links..."></textarea>
+      </div>
+      <div>
+        <label>Category</label>
+        <select id="e-cat"></select>
+      </div>
+      <div>
+        <label>Owners / Team</label>
+        <input type="text" id="e-owners" placeholder="e.g. pk, dev team, QA..." />
+      </div>
+      <div>
+        <label>Column</label>
+        <select id="e-col">
+          <option value="intake">Intake</option>
+          <option value="progress">In Progress</option>
+          <option value="done">Completed</option>
+        </select>
+      </div>
+      <label class="checkbox-row">
+        <input type="checkbox" id="e-urgent" />
+        <span>🔴 Mark as Urgent</span>
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div class="overlay hidden" id="cat-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙ Manage Categories</h2>
+      <button class="icon-btn" onclick="closeCatModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="cat-list" id="cat-list"></div>
+      <button class="btn btn-ghost btn-sm" onclick="addNewCat()" style="margin-top:4px">＋ New Category</button>
+    </div>
+    <div id="color-picker-panel" class="modal-body" style="display:none;padding-top:0">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Pick a color for <strong id="cpick-label"></strong></div>
+      <div class="color-picker-row" id="color-picker-row"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeCatModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCatChanges()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Modal -->
+<div class="overlay hidden" id="schedule-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>📅 Schedule in Outlook</h2>
+      <button class="icon-btn" onclick="closeScheduleModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="schedule-info">
+        Fill in the details below, then click <strong>Open in Outlook</strong> to create the calendar event. Outlook will open with everything pre-filled — just hit Save.
+      </div>
+      <div>
+        <label>Event Title</label>
+        <input type="text" id="s-title" value="Work Board Check-In" />
+      </div>
+      <div style="display:flex;gap:12px">
+        <div style="flex:1">
+          <label>Date</label>
+          <input type="date" id="s-date" />
+        </div>
+        <div style="flex:1">
+          <label>Start Time</label>
+          <input type="time" id="s-start" value="09:00" />
+        </div>
+        <div style="flex:1">
+          <label>End Time</label>
+          <input type="time" id="s-end" value="09:30" />
+        </div>
+      </div>
+      <div>
+        <label>Notes / Agenda</label>
+        <textarea id="s-body" rows="3" placeholder="Agenda items, links..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeScheduleModal()">Cancel</button>
+      <a id="outlook-link" href="#" class="outlook-btn" target="_blank" onclick="closeScheduleModal()">📧 Open in Outlook</a>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Default Palette ────────────────────────────────────────────────────────
+const PALETTE = ['#3b82f6','#ef4444','#8b5cf6','#f59e0b','#10b981','#06b6d4','#ec4899','#f97316','#84cc16','#a78bfa','#64748b','#e11d48'];
+
+// ── Default State ──────────────────────────────────────────────────────────
+const DEFAULT_CATEGORIES = [
+  { id:'c1', label:'Seplat',       color:'#3b82f6' },
+  { id:'c2', label:'Bug',          color:'#ef4444' },
+  { id:'c3', label:'Feature',      color:'#8b5cf6' },
+  { id:'c4', label:'Coordination', color:'#f59e0b' },
+  { id:'c5', label:'Consumers',    color:'#10b981' },
+];
+
+const DEFAULT_TASKS = [];
+
+// ── State ──────────────────────────────────────────────────────────────────
+let state = { tasks: [], categories: [], nextId: 20, nextCatId: 6 };
+let editingId = null;
+let catDraft = [];
+let colorPickTarget = null;
+let dragId = null;
+let saveTimer = null;
+
+// ── Persistence ────────────────────────────────────────────────────────────
+function loadState() {
+  try {
+    const raw = localStorage.getItem('kanban_v2');
+    if (raw) { state = JSON.parse(raw); return; }
+  } catch(e) {}
+  // First load: use defaults
+  state = { tasks: DEFAULT_TASKS.map(t=>({...t})), categories: DEFAULT_CATEGORIES.map(c=>({...c})), nextId: 20, nextCatId: 6 };
+}
+
+function saveState() {
+  localStorage.setItem('kanban_v2', JSON.stringify(state));
+  const ind = document.getElementById('save-indicator');
+  ind.style.display = 'inline-flex';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { ind.style.display = 'none'; }, 2000);
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function getCat(id) { return state.categories.find(c=>c.id===id) || { label:'—', color:'#64748b' }; }
+
+function renderCard(task) {
+  const cat = getCat(task.catId);
+  const urgentHtml = task.urgent ? `<span class="urgent-badge">🔴 Urgent</span>` : '';
+  const ownersHtml = task.owners ? `<span class="owners-badge">👤 ${esc(task.owners)}</span>` : '';
+  const noteHtml = task.note ? `<div class="card-note">${esc(task.note)}</div>` : '';
+  return `
+    <div class="card" id="card-${task.id}" draggable="true"
+         ondragstart="onDragStart(event,${task.id})"
+         ondragend="onDragEnd(event)">
+      <div class="card-top">
+        <div class="card-title">${esc(task.title)}</div>
+        <div class="card-actions">
+          <button class="icon-btn" title="Edit" onclick="openEdit(${task.id})">✏️</button>
+          <button class="icon-btn" title="Schedule" onclick="openScheduleForTask(${task.id})">📅</button>
+          <button class="icon-btn del" title="Delete" onclick="deleteTask(${task.id})">🗑</button>
+        </div>
+      </div>
+      ${noteHtml}
+      <div class="card-meta">
+        <span class="tag" style="background:${cat.color}">${esc(cat.label)}</span>
+        ${urgentHtml}
+        ${ownersHtml}
+      </div>
+    </div>`;
+}
+
+function render() {
+  ['intake','progress','done'].forEach(col => {
+    const tasks = state.tasks.filter(t=>t.col===col);
+    document.getElementById(`cards-${col}`).innerHTML = tasks.map(renderCard).join('');
+    document.getElementById(`count-${col}`).textContent = tasks.length;
+  });
+  // Update add-task dropdowns
+  ['intake','progress','done'].forEach(col => populateCatSelect(`add-cat-${col}`));
+}
+
+function populateCatSelect(id, selectedId) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  sel.innerHTML = state.categories.map(c =>
+    `<option value="${esc(c.id)}" ${c.id===selectedId?'selected':''}>${esc(c.label)}</option>`
+  ).join('');
+}
+
+// ── Add Task Inline ────────────────────────────────────────────────────────
+function openAddInline(col) {
+  document.getElementById(`add-inline-${col}`).style.display = 'flex';
+  document.getElementById(`add-btn-${col}`).style.display = 'none';
+  document.getElementById(`add-title-${col}`).focus();
+  populateCatSelect(`add-cat-${col}`);
+  // Enter key support
+  document.getElementById(`add-title-${col}`).onkeydown = (e) => { if (e.key==='Enter') confirmAddTask(col); if (e.key==='Escape') closeAddInline(col); };
+}
+
+function closeAddInline(col) {
+  document.getElementById(`add-inline-${col}`).style.display = 'none';
+  document.getElementById(`add-btn-${col}`).style.display = 'flex';
+  document.getElementById(`add-title-${col}`).value = '';
+}
+
+function confirmAddTask(col) {
+  const title = document.getElementById(`add-title-${col}`).value.trim();
+  if (!title) return;
+  const catId = document.getElementById(`add-cat-${col}`).value;
+  state.tasks.push({ id: state.nextId++, title, note:'', catId, owners:'', col, urgent:false });
+  saveState(); render();
+  closeAddInline(col);
+  toast('Task added');
+}
+
+// ── Edit Modal ─────────────────────────────────────────────────────────────
+function openEdit(id) {
+  editingId = id;
+  const task = state.tasks.find(t=>t.id===id);
+  document.getElementById('e-title').value = task.title;
+  document.getElementById('e-note').value = task.note || '';
+  document.getElementById('e-owners').value = task.owners || '';
+  document.getElementById('e-urgent').checked = !!task.urgent;
+  document.getElementById('e-col').value = task.col;
+  populateCatSelect('e-cat', task.catId);
+  document.getElementById('edit-overlay').classList.remove('hidden');
+  document.getElementById('e-title').focus();
+}
+
+function closeEditModal() { document.getElementById('edit-overlay').classList.add('hidden'); editingId = null; }
+
+function saveEdit() {
+  const task = state.tasks.find(t=>t.id===editingId);
+  if (!task) return;
+  task.title = document.getElementById('e-title').value.trim() || task.title;
+  task.note = document.getElementById('e-note').value.trim();
+  task.owners = document.getElementById('e-owners').value.trim();
+  task.urgent = document.getElementById('e-urgent').checked;
+  task.col = document.getElementById('e-col').value;
+  task.catId = document.getElementById('e-cat').value;
+  saveState(); render(); closeEditModal();
+  toast('Task updated');
+}
+
+// ── Delete Task ────────────────────────────────────────────────────────────
+function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  state.tasks = state.tasks.filter(t=>t.id!==id);
+  saveState(); render();
+  toast('Task deleted');
+}
+
+// ── Drag & Drop ────────────────────────────────────────────────────────────
+function onDragStart(e, id) {
+  dragId = id;
+  setTimeout(() => document.getElementById(`card-${id}`)?.classList.add('dragging'), 0);
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function onDragEnd(e) {
+  document.querySelectorAll('.card').forEach(c=>c.classList.remove('dragging'));
+  document.querySelectorAll('.card-list').forEach(l=>l.classList.remove('drag-over'));
+}
+
+function onDragOver(e, col) {
+  e.preventDefault();
+  document.querySelectorAll('.card-list').forEach(l=>l.classList.remove('drag-over'));
+  document.getElementById(`cards-${col}`).classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    e.currentTarget.querySelector('.card-list')?.classList.remove('drag-over');
+  }
+}
+
+function onDrop(e, col) {
+  e.preventDefault();
+  document.querySelectorAll('.card-list').forEach(l=>l.classList.remove('drag-over'));
+  if (dragId == null) return;
+  const task = state.tasks.find(t=>t.id===dragId);
+  if (task && task.col !== col) { task.col = col; saveState(); render(); toast('Moved'); }
+  dragId = null;
+}
+
+// ── Category Modal ─────────────────────────────────────────────────────────
+function openCatModal() {
+  catDraft = state.categories.map(c=>({...c}));
+  colorPickTarget = null;
+  document.getElementById('color-picker-panel').style.display = 'none';
+  renderCatList();
+  document.getElementById('cat-overlay').classList.remove('hidden');
+}
+
+function closeCatModal() {
+  document.getElementById('cat-overlay').classList.add('hidden');
+  document.getElementById('color-picker-panel').style.display = 'none';
+}
+
+function renderCatList() {
+  document.getElementById('cat-list').innerHTML = catDraft.map(cat => `
+    <div class="cat-row" id="catr-${cat.id}">
+      <div class="cat-swatch" style="background:${cat.color}" title="Change color" onclick="openColorPick('${cat.id}')"></div>
+      <input class="cat-name-input" type="text" value="${esc(cat.label)}" data-id="${cat.id}"
+             oninput="updateCatName('${cat.id}',this.value)" />
+      <button class="icon-btn del btn-sm" onclick="removeCat('${cat.id}')">✕</button>
+    </div>`).join('');
+}
+
+function updateCatName(id, val) { const c = catDraft.find(c=>c.id===id); if(c) c.label = val; }
+
+function removeCat(id) {
+  catDraft = catDraft.filter(c=>c.id!==id);
+  if (colorPickTarget === id) document.getElementById('color-picker-panel').style.display = 'none';
+  renderCatList();
+}
+
+function addNewCat() {
+  const id = 'c' + (state.nextCatId++);
+  catDraft.push({ id, label: 'New Category', color: PALETTE[Math.floor(Math.random()*PALETTE.length)] });
+  renderCatList();
+  // Focus new input
+  setTimeout(() => {
+    const inp = document.querySelector(`#catr-${id} .cat-name-input`);
+    if (inp) { inp.focus(); inp.select(); }
+  }, 50);
+}
+
+function openColorPick(id) {
+  colorPickTarget = id;
+  const cat = catDraft.find(c=>c.id===id);
+  document.getElementById('cpick-label').textContent = cat?.label || id;
+  const row = document.getElementById('color-picker-row');
+  row.innerHTML = PALETTE.map(col =>
+    `<div class="cpick ${cat?.color===col?'selected':''}" style="background:${col}" onclick="pickColor('${col}')"></div>`
+  ).join('');
+  document.getElementById('color-picker-panel').style.display = 'block';
+}
+
+function pickColor(color) {
+  const cat = catDraft.find(c=>c.id===colorPickTarget);
+  if (cat) { cat.color = color; renderCatList(); openColorPick(colorPickTarget); }
+}
+
+function saveCatChanges() {
+  // Flush any active name inputs
+  document.querySelectorAll('.cat-name-input').forEach(inp => {
+    const id = inp.dataset.id;
+    const c = catDraft.find(c=>c.id===id);
+    if (c) c.label = inp.value.trim() || c.label;
+  });
+  state.categories = catDraft.map(c=>({...c}));
+  saveState(); render(); closeCatModal();
+  toast('Categories updated');
+}
+
+// ── Schedule Modal ─────────────────────────────────────────────────────────
+function openScheduleModal() {
+  // Default date to today
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('s-date').value = today;
+  document.getElementById('s-title').value = 'Work Board Check-In';
+  document.getElementById('s-body').value = 'Review Kanban board — move items, update status, plan the day.';
+  updateOutlookLink();
+  document.getElementById('schedule-overlay').classList.remove('hidden');
+}
+
+function openScheduleForTask(id) {
+  const task = state.tasks.find(t=>t.id===id);
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('s-date').value = today;
+  document.getElementById('s-title').value = task?.title || '';
+  document.getElementById('s-body').value = task?.note || '';
+  updateOutlookLink();
+  document.getElementById('schedule-overlay').classList.remove('hidden');
+}
+
+function closeScheduleModal() { document.getElementById('schedule-overlay').classList.add('hidden'); }
+
+function updateOutlookLink() {
+  const title = document.getElementById('s-title').value;
+  const date = document.getElementById('s-date').value;
+  const start = document.getElementById('s-start').value;
+  const end = document.getElementById('s-end').value;
+  const body = document.getElementById('s-body').value;
+  if (!date) return;
+  const startDt = `${date}T${start}:00`;
+  const endDt = `${date}T${end}:00`;
+  const link = `https://outlook.office.com/calendar/action/compose?subject=${encodeURIComponent(title)}&startdt=${encodeURIComponent(startDt)}&enddt=${encodeURIComponent(endDt)}&body=${encodeURIComponent(body)}`;
+  document.getElementById('outlook-link').href = link;
+}
+
+// Live update the outlook link as user types
+document.addEventListener('input', e => {
+  if (['s-title','s-date','s-start','s-end','s-body'].includes(e.target?.id)) updateOutlookLink();
+});
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ── Keyboard shortcuts ─────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeEditModal();
+    closeCatModal();
+    closeScheduleModal();
+  }
+  if ((e.key === 'Enter') && document.getElementById('edit-overlay').classList.contains('hidden') === false) {
+    if (document.activeElement.tagName !== 'TEXTAREA') saveEdit();
+  }
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+loadState();
+render();
+</script>
+</body>
+</html>
